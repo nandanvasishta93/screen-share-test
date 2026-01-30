@@ -8,53 +8,46 @@ export function useScreenShare() {
   const [paused, setPaused] = useState(false);
   const [label, setLabel] = useState("");
 
-  const isStreaming = () => {
-    const track = streamRef.current?.getVideoTracks?.()[0];
-    return track && track.readyState === "live";
-  };
-
   const cleanup = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setPaused(false);
   };
 
   const start = async () => {
-    setState("requesting");
-
     try {
+      setState("requesting");
+
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: false,
       });
 
-      const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) {
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
         setState("cancelled");
         return;
       }
 
       streamRef.current = stream;
-
-      videoRef.current.srcObject = stream;
-      videoRef.current.muted = true;     // 🔑 REQUIRED
-      videoRef.current.play().catch(() => {}); // 🔑 REQUIRED
-
-      setLabel(videoTrack.label);
+      setLabel(track.label || "Screen");
       setState("granted");
 
-      videoTrack.onended = () => {
+      track.onended = () => {
         cleanup();
-        setState("ended");
+        setState("ended"); // ✅ Screen sharing stopped
       };
-    } catch (err) {
-      if (isStreaming()) {
-        setState("granted");
-        return;
-      }
 
-      if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
-        setState("cancelled");
+    } catch (err) {
+      if (err.name === "NotAllowedError") {
+        setState("denied"); // ✅ Permission denied
+      } else if (err.name === "AbortError") {
+        setState("cancelled"); // ✅ Screen sharing stopped
       } else {
         setState("denied");
       }
@@ -62,25 +55,23 @@ export function useScreenShare() {
   };
 
   const stop = () => {
-    if (!isStreaming()) return;
     cleanup();
-    setState("ended");
+    setState("ended"); // ✅ Screen sharing stopped
   };
 
   const pause = () => {
-    if (!isStreaming()) return;
-    streamRef.current.getVideoTracks().forEach(t => (t.enabled = false));
+    streamRef.current?.getVideoTracks().forEach(t => (t.enabled = false));
     setPaused(true);
   };
 
   const resume = () => {
-    if (!isStreaming()) return;
-    streamRef.current.getVideoTracks().forEach(t => (t.enabled = true));
+    streamRef.current?.getVideoTracks().forEach(t => (t.enabled = true));
     setPaused(false);
   };
 
   return {
     videoRef,
+    streamRef,
     state,
     paused,
     label,

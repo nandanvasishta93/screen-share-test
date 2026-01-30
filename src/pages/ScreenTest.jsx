@@ -1,6 +1,10 @@
-import Navbar from "../components/Navbar";
-import { useScreenShare } from "../hooks/useScreenShare";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import PermissionBadge from "../components/PermissionBadge";
+import ScreenControls from "../components/ScreenControls";
+import ShareInfo from "../components/ShareInfo";
+import { useScreenShare } from "../hooks/useScreenShare";
 
 export default function ScreenTest() {
   const navigate = useNavigate();
@@ -10,144 +14,106 @@ export default function ScreenTest() {
     paused,
     label,
     videoRef,
+    streamRef,
     start,
     stop,
     pause,
     resume,
   } = useScreenShare();
 
-  const isActive = state === "granted";
+  // 🔥 Attach stream AFTER video mounts
+  useEffect(() => {
+    if (state === "granted" && videoRef.current && streamRef.current) {
+      const video = videoRef.current;
+      video.srcObject = streamRef.current;
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.play().catch(console.error);
+    }
+  }, [state]);
 
   return (
     <>
       <Navbar />
 
       <section className="min-h-screen flex items-center justify-center pt-32 px-6">
-        <div
-          className={`
-            w-full max-w-5xl text-center
-            glass px-16 py-20
-            animate-panelIn
-            ${isActive ? "animate-glowPulse" : ""}
-          `}
-        >
-          {/* TITLE */}
-          <h2 className="text-4xl font-semibold animate-fadeUp">
-            Screen Share Test
-          </h2>
+        <div className="w-full max-w-5xl glass px-16 py-20 text-center">
 
-          {/* STATUS */}
-          <p className="mt-3 text-slate-400 animate-fadeUp">
-            {state.toUpperCase()}
-          </p>
+          <h2 className="text-4xl font-semibold">Screen Share Test</h2>
 
-          {/* IDLE */}
+          <div className="mt-4 flex justify-center">
+            <PermissionBadge state={state} />
+          </div>
+
           {state === "idle" && (
-            <div className="mt-10 animate-fadeUp">
-              <button onClick={start} className="primary-btn">
-                Start Screen Sharing
-              </button>
-            </div>
+            <button onClick={start} className="primary-btn mt-10">
+              Start Screen Sharing
+            </button>
           )}
 
-          {/* REQUESTING */}
           {state === "requesting" && (
-            <p className="mt-10 text-slate-400 animate-fadeUp">
+            <p className="mt-10 text-slate-400">
               Waiting for screen selection…
             </p>
           )}
 
-          {/* ACTIVE */}
           {state === "granted" && (
             <div className="mt-10 space-y-6">
-              {/* VIDEO CONTAINER */}
-              <div className="relative animate-videoIn rounded-xl border border-white/10 overflow-hidden">
-                {/* LIVE BADGE */}
-                <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/60 backdrop-blur px-3 py-1.5 rounded-full text-sm">
-                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                  Live preview
-                </div>
-
-                {/* GRADIENT OVERLAY */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/30 pointer-events-none" />
-
-                {/* VIDEO */}
+              <div className="relative rounded-xl overflow-hidden border border-white/10">
                 <video
                   ref={videoRef}
-                  playsInline
-                  className="w-full aspect-video bg-black opacity-0 transition-opacity duration-300"
-                  onPlaying={(e) =>
-                    e.currentTarget.classList.remove("opacity-0")
-                  }
+                  className="w-full aspect-video bg-black"
                 />
-
-                {/* FALLBACK TEXT */}
-                <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm pointer-events-none">
-                  Preview loading…
+                <div className="absolute top-3 left-3 bg-black/60 px-3 py-1 rounded-full text-sm">
+                  🔴 Live
                 </div>
               </div>
 
-              {/* SHARE INFO */}
-              <p className="text-slate-400 animate-fadeUp">
-                Sharing: <span className="text-white">{label}</span>
-              </p>
+              <ShareInfo label={label} />
 
-              {/* CONTROLS */}
-              <div className="flex justify-center gap-5 animate-fadeUp">
-                {!paused ? (
-                  <button
-                    onClick={pause}
-                    className="control-btn pause-btn text-black"
-                  >
-                    Pause
-                  </button>
-                ) : (
-                  <button
-                    onClick={resume}
-                    className="control-btn resume-btn text-black"
-                  >
-                    Resume
-                  </button>
-                )}
-
-                <button
-                  onClick={stop}
-                  className="control-btn stop-btn text-white"
-                >
-                  Stop
-                </button>
-              </div>
+              <ScreenControls
+                paused={paused}
+                onPause={pause}
+                onResume={resume}
+                onStop={stop}
+              />
             </div>
           )}
 
-          {/* ENDED / CANCELLED */}
+          {/* ✅ SCREEN SHARING STOPPED */}
           {(state === "ended" || state === "cancelled") && (
-            <div className="mt-12 space-y-6 animate-fadeUp">
+            <div className="mt-12 space-y-6">
               <p className="text-slate-400">
-                Screen sharing stopped.
+                Screen sharing stopped
               </p>
 
               <div className="flex justify-center gap-4">
                 <button onClick={start} className="primary-btn">
                   Retry
                 </button>
-
                 <button
                   onClick={() => navigate("/")}
                   className="secondary-btn"
                 >
-                  Go to Home
+                  Go Home
                 </button>
               </div>
             </div>
           )}
 
-          {/* DENIED */}
+          {/* ❌ PERMISSION DENIED */}
           {state === "denied" && (
-            <p className="mt-10 text-red-400 animate-fadeUp">
-              Screen sharing permission was denied by the browser.
-            </p>
+            <div className="mt-12 space-y-4">
+              <p className="text-red-400 font-medium">
+                Permission denied
+              </p>
+              <p className="text-slate-400 text-sm">
+                Please allow screen sharing in browser permissions.
+              </p>
+            </div>
           )}
+
         </div>
       </section>
     </>
